@@ -23,7 +23,6 @@ export default function App() {
   const [rows] = useState<number>(12);
   const [totalRecords, setTotalRecords] = useState(0);
   const [artworks, setArtworks] = useState<Artwork[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
     {}
   );
@@ -37,7 +36,7 @@ export default function App() {
   }, [page]);
 
   const fetchPage = async (pageNum: number) => {
-    setLoading(true);
+    
     const res = await fetch(
       `https://api.artic.edu/api/v1/artworks?page=${pageNum}`
     );
@@ -48,7 +47,7 @@ export default function App() {
       return Array.from(new Set([...prev, ...newIds]));
     });
     setTotalRecords(data.pagination.total);
-    setLoading(false);
+    
   };
   //Handling selection change (toggle for checkbox)
   const handleSelectionChange = (selected: Artwork[]) => {
