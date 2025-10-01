@@ -6,8 +6,8 @@ import "./index.css";
 import "primereact/resources/themes/lara-light-indigo/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
-
 import { OverlayPanel } from "primereact/overlaypanel";
+
 interface Artwork {
   id: number;
   title: string;
@@ -23,56 +23,62 @@ export default function App() {
   const [rows] = useState<number>(12);
   const [totalRecords, setTotalRecords] = useState(0);
   const [artworks, setArtworks] = useState<Artwork[]>([]);
-  const [selectedRows, setSelectedRows] = useState<{ [key: number]: boolean }>(
+  const [selectedRows, setSelectedRows] = useState<{ [id: number]: boolean }>(
     {}
   );
-  const [allRowIds, setAllRowIds] = useState<number[]>([]);
   const op = useRef<OverlayPanel>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  //Fetching pages on each request
+  // Fetch only the current page on page change
   useEffect(() => {
     fetchPage(page + 1);
   }, [page]);
 
   const fetchPage = async (pageNum: number) => {
-    
     const res = await fetch(
-      `https://api.artic.edu/api/v1/artworks?page=${pageNum}`
+      `https://api.artic.edu/api/v1/artworks?page=${pageNum}&limit=${rows}`
     );
     const data = await res.json();
     setArtworks(data.data);
-    setAllRowIds((prev) => {
-      const newIds = data.data.map((a: Artwork) => a.id);
-      return Array.from(new Set([...prev, ...newIds]));
-    });
     setTotalRecords(data.pagination.total);
-    
   };
-  //Handling selection change (toggle for checkbox)
+
+  // Handle checkbox selection per page
   const handleSelectionChange = (selected: Artwork[]) => {
     setSelectedRows((prev) => {
       const updated = { ...prev };
-      const newSelection: { [key: number]: boolean } = {};
-      selected.forEach((row) => {
-        newSelection[row.id] = true;
-      });
       artworks.forEach((row) => {
-        if (!newSelection[row.id]) delete updated[row.id];
+        updated[row.id] = selected.some((s) => s.id === row.id);
       });
-      return { ...updated, ...newSelection };
+      return updated;
     });
   };
 
   const handlePageChange = (e: { page: number }) => {
     setPage(e.page);
   };
-  //Handling selection of first 'n' rows
-  const handleSelectedRows = (count: number) => {
-    if (count <= 0) return;
 
-    const updated: Record<number, boolean> = {};
-    allRowIds.slice(0, count).forEach((id) => (updated[id] = true));
+  // Select first N rows across all pages starting from current page
+  const handleSelectedRows = async (count: number) => {
+    if (count <= 0) return;
+    const updated: { [id: number]: boolean } = {};
+    let selectedCount = 0;
+    const totalPages = Math.ceil(totalRecords / rows);
+
+    // Start selection from the current page
+    for (let p = page; p < totalPages && selectedCount < count; p++) {
+      const res = await fetch(
+        `https://api.artic.edu/api/v1/artworks?page=${p + 1}&limit=${rows}`
+      );
+      const data = await res.json();
+
+      for (const row of data.data) {
+        if (selectedCount < count) {
+          updated[row.id] = true;
+          selectedCount++;
+        } else break;
+      }
+    }
 
     setSelectedRows(updated);
     op.current?.hide();
@@ -104,9 +110,10 @@ export default function App() {
         first={page * rows}
         rows={rows}
         totalRecords={totalRecords}
-        onPageChange={(e: any) => handlePageChange(e)}
+        onPageChange={handlePageChange}
         pageLinkSize={5}
       />
+
       <button
         type="button"
         onClick={(e) => op.current?.toggle(e)}
@@ -114,14 +121,14 @@ export default function App() {
       >
         <i className="pi pi-chevron-down"></i>
       </button>
-      <OverlayPanel ref={op}>
+      <OverlayPanel ref={op} dismissable>
         <div className="overlay-content">
           <input
             type="number"
             placeholder="enter no. of rows"
             ref={inputRef}
             min={1}
-            max={artworks.length}
+            max={totalRecords}
           />
           <button
             className="submit-button"
